@@ -2,6 +2,7 @@ class PPMCapture {
   public:
     static const unsigned int SYNC_PULSE_LENGTH = 6000;              // ~ 3ms (normally, anything more than 2ms should be considered an end of frame)
     static const unsigned int CHANNEL_COUNT = 7;                     // 7 is typical... Walkera/Phantom 2 Trainer Port
+
     static const unsigned int PULSE_COUNT = CHANNEL_COUNT + 1;       // Don't touch this... lol
 
     static uint16_t temp_channels_buffer[PULSE_COUNT]; 
@@ -18,7 +19,15 @@ class PPMCapture {
       OCR1A = SYNC_PULSE_LENGTH;
     }
 
-    void updateChannels() {
+    void pulse(){
+      if(channel_counter < PULSE_COUNT) {
+        temp_channels_buffer[channel_counter] = ICR1;
+        channel_counter++;
+      }
+      else if (channel_counter < PULSE_COUNT + 1) channel_counter++;
+    }
+
+    void sync() {
       if (channel_counter < PULSE_COUNT) return;
       if (channel_counter > PULSE_COUNT) return;
 
@@ -28,45 +37,20 @@ class PPMCapture {
 
       channel_counter = 0;
     }
-
-    uint16_t getChannel(uint8_t index) {
-      if (index >= CHANNEL_COUNT) {
-        return 0; // or some error indication
-      }
-      return channels[index];
-    }
-
-    void loop(){
-      for(int i = 0; i < CHANNEL_COUNT; i++){
-        Serial.print(channels[i]);
-        Serial.print(' ');
-      }
-      Serial.print('\n');
-    }
 };
 
-uint16_t PPMCapture::temp_channels_buffer[PULSE_COUNT] = {0}; 
-uint16_t PPMCapture::channels[CHANNEL_COUNT] = {0};
+uint16_t PPMCapture::temp_channels_buffer[PULSE_COUNT]; 
+uint16_t PPMCapture::channels[CHANNEL_COUNT];
 uint8_t PPMCapture::channel_counter = 0;
 
 PPMCapture ppm;
 
-void armPPMCapture() {
-  ppm.begin();
-}
-
-/* Pulse Detected */
 ISR (TIMER1_CAPT_vect) {
-  if(ppm.channel_counter < ppm.PULSE_COUNT) {
-    ppm.temp_channels_buffer[ppm.channel_counter] = ICR1;
-    ppm.channel_counter++;
-  }
-  else if (ppm.channel_counter < ppm.PULSE_COUNT + 1) ppm.channel_counter++;
+  ppm.pulse();
 }
 
-/* Synchronization Detected */
 ISR (TIMER1_COMPA_vect) {
-  ppm.updateChannels();
+  ppm.sync();
 }
 
 void setup(){
@@ -74,5 +58,9 @@ void setup(){
 }
 
 void loop(){
-  ppm.loop();
+  for(int i = 0; i < ppm.CHANNEL_COUNT; i++){
+    Serial.print(ppm.channels[i]);
+    Serial.print(' ');
+  }
+  Serial.print('\n');
 }
